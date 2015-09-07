@@ -37,6 +37,15 @@
         发送完毕后，进入while中，执行小灯闪烁效果
 */
 
+/* 串口接收中断回调函数
+   在函数中写中断想要做的事情
+*/
+static void UART_RX_ISR(uint16_t byteReceived)
+{
+    /* 将接收到的数据发送回去 */
+    UART_WriteByte(HW_UART1, byteReceived);
+}
+
 int main(void)
 {
     uint32_t UID_buf[4];
@@ -46,6 +55,10 @@ int main(void)
     UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
 
     UART_QuickInit(UART1_RX_PE01_TX_PE00, 115200);
+    /*  配置UART 中断配置 打开接收中断 安装中断回调函数 */
+    UART_CallbackRxInstall(HW_UART1, UART_RX_ISR);
+    /* 打开串口接收中断功能 IT 就是中断的意思*/
+    UART_ITDMAConfig(HW_UART1, kUART_IT_Rx, true);
 
     DelayMs(10);
     /* 打印芯片信息 */
