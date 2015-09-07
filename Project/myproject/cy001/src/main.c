@@ -43,6 +43,7 @@ int main(void)
     uint8_t i;
     DelayInit();
     GPIO_QuickInit(HW_GPIOC, 1, kGPIO_Mode_OPP);
+    UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
     UART_QuickInit(UART1_RX_PE01_TX_PE00, 115200);
     DelayMs(10);
     /* 打印芯片信息 */
