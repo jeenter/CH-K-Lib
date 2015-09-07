@@ -2,6 +2,7 @@
 #include "common.h"
 #include "uart.h"
 #include "cpuidy.h"
+#include "main.h"
 
 /* CH Kinetis固件库 V2.50 版本 */
 /* 修改主频 请使用 CMSIS标准文件 startup_MKxxxx.c 中的 CLOCK_SETUP 宏 */
@@ -35,31 +36,30 @@
  实验效果：使用串口UART将芯片的出厂信息在芯片上电后发送出去
         发送完毕后，进入while中，执行小灯闪烁效果
 */
- 
+
 int main(void)
 {
-    uint32_t clock;
     uint32_t UID_buf[4];
     uint8_t i;
     DelayInit();
     GPIO_QuickInit(HW_GPIOC, 1, kGPIO_Mode_OPP);
     UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
+
     UART_QuickInit(UART1_RX_PE01_TX_PE00, 115200);
+
     DelayMs(10);
     /* 打印芯片信息 */
-    printf("%s - %dP\r\n", CPUIDY_GetFamID(), CPUIDY_GetPinCount());
+    LOG("%s - %dP\r\n", CPUIDY_GetFamID(), CPUIDY_GetPinCount());
     /* 打印时钟频率 */
-    clock = GetClock(kCoreClock);
-    printf("core clock:%dHz\r\n", clock);
-    clock = GetClock(kBusClock);
-    printf("bus clock:%dHz\r\n", clock);
+    LOG("core clock:%dHz\r\n", GetClock(kCoreClock));
+    LOG("bus clock:%dHz\r\n", GetClock(kBusClock));
     CPUIDY_GetUID(UID_buf);
-    printf("UID:");
+    LOG("UID:0x");
     for(i=0;i<4;i++)
     {
-        printf("%04x", UID_buf[3-i]);
+        LOG("%04x", UID_buf[3-i]);
     }
-    printf("\r\n");
+    LOG("\r\n");
     
     while(1)
     {
