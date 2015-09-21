@@ -1,8 +1,5 @@
-#include "gpio.h"
-#include "common.h"
-#include "uart.h"
-#include "cpuidy.h"
 #include "main.h"
+#include "hwdriver.h"
 
 /* CH Kinetis固件库 V2.50 版本 */
 /* 修改主频 请使用 CMSIS标准文件 startup_MKxxxx.c 中的 CLOCK_SETUP 宏 */
@@ -50,7 +47,11 @@ int main(void)
 {
     uint32_t UID_buf[4];
     uint8_t i;
+
     DelayInit();
+
+    hwDriverInit();
+
     GPIO_QuickInit(HW_GPIOC, 1, kGPIO_Mode_OPP);
     UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
 
@@ -73,7 +74,7 @@ int main(void)
         LOG("%04x", UID_buf[3-i]);
     }
     LOG("\r\n");
-    
+
     while(1)
     {
         /* 闪烁小灯 */

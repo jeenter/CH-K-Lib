@@ -2999,6 +2999,9 @@
   <group>
     <name>user</name>
     <file>
+      <name>$PROJ_DIR$\..\src\hwdriver.c</name>
+    </file>
+    <file>
       <name>$PROJ_DIR$\..\src\main.c</name>
     </file>
   </group>
