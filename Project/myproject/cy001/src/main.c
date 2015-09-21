@@ -52,6 +52,12 @@ int main(void)
 
     hwDriverInit();
 
+    /* 使用快速初始化 */
+    FTM_PWM_QuickInit(FTM3_CH4_PC08, kPWM_EdgeAligned, 24000000);
+    
+    /* 设置FTM0模块3通道的占空比 */
+    FTM_PWM_ChangeDuty(HW_FTM3, HW_FTM_CH4, 5000); /* 0-10000 对应 0-100% */
+    
     GPIO_QuickInit(HW_GPIOC, 1, kGPIO_Mode_OPP);
     UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
 
