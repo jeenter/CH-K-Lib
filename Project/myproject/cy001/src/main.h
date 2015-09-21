@@ -6,6 +6,7 @@
 #include "uart.h"
 #include "ftm.h"
 #include "cpuidy.h"
+#include "i2c.h"
 
 /*-*-* 所有宏开关 *-*-*/
 

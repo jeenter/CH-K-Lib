@@ -43,6 +43,21 @@ static void UART_RX_ISR(uint16_t byteReceived)
     UART_WriteByte(HW_UART1, byteReceived);
 }
 
+/* i2c bus scan */
+static void I2C_Scan(uint32_t instance)
+{
+    uint8_t i;
+    uint8_t ret;
+    for(i = 1; i < 127; i++)
+    {
+        ret = I2C_BurstWrite(instance , i, 0, 0, NULL, 0);
+        if(!ret)
+        {
+            LOG("ADDR:0x%2X(7BIT) | 0x%2X(8BIT) found!\r\n", i, i<<1);
+        }
+    }
+}
+
 int main(void)
 {
     uint32_t UID_buf[4];
@@ -50,14 +65,6 @@ int main(void)
 
     DelayInit();
 
-    hwDriverInit();
-
-    /* 使用快速初始化 */
-    FTM_PWM_QuickInit(FTM3_CH4_PC08, kPWM_EdgeAligned, 24000000);
-    
-    /* 设置FTM0模块3通道的占空比 */
-    FTM_PWM_ChangeDuty(HW_FTM3, HW_FTM_CH4, 5000); /* 0-10000 对应 0-100% */
-    
     GPIO_QuickInit(HW_GPIOC, 1, kGPIO_Mode_OPP);
     UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
 
@@ -68,6 +75,7 @@ int main(void)
     UART_ITDMAConfig(HW_UART1, kUART_IT_Rx, true);
 
     DelayMs(10);
+
     /* 打印芯片信息 */
     LOG("%s - %dP\r\n", CPUIDY_GetFamID(), CPUIDY_GetPinCount());
     /* 打印时钟频率 */
@@ -81,6 +89,17 @@ int main(void)
     }
     LOG("\r\n");
 
+    hwDriverInit();
+
+    /* 使用快速初始化 */
+    FTM_PWM_QuickInit(FTM3_CH4_PC08, kPWM_EdgeAligned, 12000000);
+
+    /* 设置FTM0模块3通道的占空比 */
+//    FTM_PWM_ChangeDuty(HW_FTM3, HW_FTM_CH4, 5000); /* 0-10000 对应 0-100% */
+
+    uint32_t instance;
+    instance = I2C_QuickInit(I2C0_SCL_PB00_SDA_PB01, 100*1000);
+    I2C_Scan(instance);
     while(1)
     {
         /* 闪烁小灯 */
