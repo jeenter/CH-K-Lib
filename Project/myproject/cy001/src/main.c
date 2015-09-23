@@ -26,14 +26,14 @@
  UART5_RX_PD08_TX_PD09   
 */
  
-#define CAMERA_SCCB_ADDR        (0x21)//(0x42)
-#define CAMERA_GC0308_ID        (0x9B)
+#define CAMERA_SCCB_ADDR    (0x21)//(0x42)
+#define CAMERA_GC0308_ID    (0x9B)
 
 // 改变图像大小
 //0: 80x60
 //1: 160x120
 //2: 240x180
-#define IMAGE_SIZE  0
+#define IMAGE_SIZE  3
 
 #if (IMAGE_SIZE  ==  0)
 #define OV7620_W    (80)
@@ -46,6 +46,10 @@
 #elif (IMAGE_SIZE == 2)
 #define OV7620_W    (240)
 #define OV7620_H    (180)
+
+#elif (IMAGE_SIZE == 3)
+#define OV7620_W    (640)
+#define OV7620_H    (100)
 
 #else
 #error "Image Size Not Support!"
@@ -63,19 +67,22 @@ uint8_t gCCD_RAM[(OV7620_H)*((OV7620_W/8)+1)];   //使用内部RAM
 uint8_t * gpHREF[OV7620_H+1];
 
 /* 引脚定义 PCLK VSYNC HREF 接到同一个PORT上 */
-#define BOARD_OV7620_PCLK_PORT      HW_GPIOA
-#define BOARD_OV7620_PCLK_PIN       (7)
-#define BOARD_OV7620_VSYNC_PORT     HW_GPIOA
-#define BOARD_OV7620_VSYNC_PIN      (16)
-#define BOARD_OV7620_HREF_PORT      HW_GPIOA
-#define BOARD_OV7620_HREF_PIN       (17)
-/* 
-摄像头数据引脚PTA8-PTA15 只能填入 0 8 16三个值 
-0 :PTA0-PTA7
-8 :PTA8-PTA15
-16:PTA16-PTA24
-*/
-#define BOARD_OV7620_DATA_OFFSET    (8) 
+#define CMOS_PCLK_PORT      HW_GPIOC
+#define CMOS_PCLK_PIN       (9)
+#define CMOS_VSYNC_PORT     HW_GPIOC
+#define CMOS_VSYNC_PIN      (10)
+#define CMOS_HREF_PORT      HW_GPIOA
+#define CMOS_HREF_PIN       (13)
+
+#define CMOS_DATA_PORT      HW_GPIOD
+#define CMOS_DATA0_PIN      (0)
+#define CMOS_DATA1_PIN      (1)
+#define CMOS_DATA2_PIN      (2)
+#define CMOS_DATA3_PIN      (3)
+#define CMOS_DATA4_PIN      (4)
+#define CMOS_DATA5_PIN      (5)
+#define CMOS_DATA6_PIN      (6)
+#define CMOS_DATA7_PIN      (7)
 
 /* 状态机定义 */
 typedef enum
@@ -90,7 +97,7 @@ struct {
     uint32_t h_size;
     uint32_t v_size;
 }m_gc0308;
-
+uint32_t h_counter;
 static void UserApp(uint32_t vcount);
 
 
@@ -427,17 +434,14 @@ int8_t Cmos_SCCB_Init(uint32_t I2C_MAP)
     }
     return 0;
 }
-
-#if 0
-//行中断和长中断都使用PTA中断
-void OV_ISR(uint32_t index)
+//行中断和场中断都使用PTC中断
+void CMOS_ISR1(uint32_t index)
 {
     static uint8_t status = TRANSFER_IN_PROCESS;
-    static uint32_t h_counter, v_counter;
    // uint32_t i;
     
     /* 行中断 */
-    if(index & (1 << BOARD_OV7620_HREF_PIN))
+    if(index & (1 << CMOS_HREF_PIN))
     {
         DMA_SetDestAddress(HW_DMA_CH2, (uint32_t)gpHREF[h_counter++]);
         //i = DMA_GetMajorLoopCount(HW_DMA_CH2);
@@ -446,11 +450,31 @@ void OV_ISR(uint32_t index)
         
         return;
     }
-    /* 场中断 */
-    if(index & (1 << BOARD_OV7620_VSYNC_PIN))
+}
+//行中断和场中断都使用PTC中断
+void CMOS_ISR(uint32_t index)
+{
+    static uint8_t status = TRANSFER_IN_PROCESS;
+    static uint32_t v_counter;
+   // uint32_t i;
+    
+#if 0//行中断
+    /* 行中断 */
+    if(index & (1 << CMOS_HREF_PIN))
     {
-        GPIO_ITDMAConfig(BOARD_OV7620_VSYNC_PORT, BOARD_OV7620_VSYNC_PIN, kGPIO_IT_FallingEdge, false);
-        GPIO_ITDMAConfig(BOARD_OV7620_HREF_PORT, BOARD_OV7620_HREF_PIN, kGPIO_IT_FallingEdge, false);
+        DMA_SetDestAddress(HW_DMA_CH2, (uint32_t)gpHREF[h_counter++]);
+        //i = DMA_GetMajorLoopCount(HW_DMA_CH2);
+        DMA_SetMajorLoopCounter(HW_DMA_CH2, (OV7620_W/8)+1);
+        DMA_EnableRequest(HW_DMA_CH2);
+        
+        return;
+    }
+#endif//行中断
+    /* 场中断 */
+    if(index & (1 << CMOS_VSYNC_PIN))
+    {
+        GPIO_ITDMAConfig(CMOS_VSYNC_PORT, CMOS_VSYNC_PIN, kGPIO_IT_RisingEdge, false);
+        GPIO_ITDMAConfig(CMOS_HREF_PORT, CMOS_HREF_PIN, kGPIO_IT_RisingEdge, false);
         switch(status)
         {
             case TRANSFER_IN_PROCESS: //接受到一帧数据调用用户处理
@@ -466,14 +490,13 @@ void OV_ISR(uint32_t index)
             default:
                 break;
         }
-        GPIO_ITDMAConfig(BOARD_OV7620_VSYNC_PORT, BOARD_OV7620_VSYNC_PIN, kGPIO_IT_FallingEdge, true);
-        GPIO_ITDMAConfig(BOARD_OV7620_HREF_PORT, BOARD_OV7620_HREF_PIN, kGPIO_IT_FallingEdge, true);
-        PORTA->ISFR = 0xFFFFFFFF;
+        GPIO_ITDMAConfig(CMOS_VSYNC_PORT, CMOS_VSYNC_PIN, kGPIO_IT_RisingEdge, true);
+        GPIO_ITDMAConfig(CMOS_HREF_PORT, CMOS_HREF_PIN, kGPIO_IT_RisingEdge, true);
+        PORTC->ISFR = 0xFFFFFFFF;
         h_counter = 0;
         return;
     }
 }
-#endif
 
  /*
      实验名称：UART打印信息
@@ -529,9 +552,56 @@ int main(void)
     FTM_PWM_QuickInit(FTM3_CH4_PC08, kPWM_EdgeAligned, 12000000);
 
     /* 设置FTM0模块3通道的占空比 */
-//    FTM_PWM_ChangeDuty(HW_FTM3, HW_FTM_CH4, 5000); /* 0-10000 对应 0-100% */
+    //FTM_PWM_ChangeDuty(HW_FTM3, HW_FTM_CH4, 5000); /* 0-10000 对应 0-100% */
+
+    DMA_InitTypeDef DMA_InitStruct1 = {0};
 
     Cmos_SCCB_Init(I2C0_SCL_PB00_SDA_PB01);
+
+    /* 场中断  行中断 像素中断 */
+    GPIO_QuickInit(CMOS_PCLK_PORT, CMOS_PCLK_PIN, kGPIO_Mode_IPD);
+    GPIO_QuickInit(CMOS_VSYNC_PORT, CMOS_VSYNC_PIN, kGPIO_Mode_IPD);
+    GPIO_QuickInit(CMOS_HREF_PORT, CMOS_HREF_PIN, kGPIO_Mode_IPD);
+    
+    /* install callback */
+    GPIO_CallbackInstall(CMOS_VSYNC_PORT, CMOS_ISR);
+    GPIO_CallbackInstall(CMOS_HREF_PORT, CMOS_ISR1);
+    GPIO_ITDMAConfig(CMOS_HREF_PORT, CMOS_HREF_PIN, kGPIO_IT_RisingEdge, true);
+    GPIO_ITDMAConfig(CMOS_VSYNC_PORT, CMOS_VSYNC_PIN, kGPIO_IT_RisingEdge, true);
+    GPIO_ITDMAConfig(CMOS_PCLK_PORT, CMOS_PCLK_PIN, kGPIO_DMA_RisingEdge, true);
+    /* 初始化数据端口 */
+    for(i=0;i<8;i++)
+    {
+        GPIO_QuickInit(HW_GPIOD, CMOS_DATA0_PIN+i, kGPIO_Mode_IFT);
+    }
+
+    //每行数据指针
+    for(i=0; i<OV7620_H+1; i++)
+    {
+        gpHREF[i] = (uint8_t*)&gCCD_RAM[i*OV7620_W/8];
+    }
+
+    //DMA配置
+    DMA_InitStruct1.chl = HW_DMA_CH2;
+    DMA_InitStruct1.chlTriggerSource = PORTC_DMAREQ;
+    DMA_InitStruct1.triggerSourceMode = kDMA_TriggerSource_Normal;
+    DMA_InitStruct1.minorLoopByteCnt = 1;
+    DMA_InitStruct1.majorLoopCnt = ((OV7620_W/8) +1);
+    
+    DMA_InitStruct1.sAddr = (uint32_t)&PTD->PDIR;
+    DMA_InitStruct1.sLastAddrAdj = 0;
+    DMA_InitStruct1.sAddrOffset = 0;
+    DMA_InitStruct1.sDataWidth = kDMA_DataWidthBit_8;
+    DMA_InitStruct1.sMod = kDMA_ModuloDisable;
+    
+    DMA_InitStruct1.dAddr = (uint32_t)gpHREF[0];
+    DMA_InitStruct1.dLastAddrAdj = 0;
+    DMA_InitStruct1.dAddrOffset = 1;
+    DMA_InitStruct1.dDataWidth = kDMA_DataWidthBit_8;
+    DMA_InitStruct1.dMod = kDMA_ModuloDisable;
+
+    /* initialize DMA moudle */
+    DMA_Init(&DMA_InitStruct1);
     while(1)
     {
         /* 闪烁小灯 */

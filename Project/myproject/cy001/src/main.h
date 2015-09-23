@@ -7,6 +7,7 @@
 #include "ftm.h"
 #include "cpuidy.h"
 #include "i2c.h"
+#include "dma.h"
 
 /*-*-* 所有宏开关 *-*-*/
 
