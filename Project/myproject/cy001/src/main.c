@@ -33,7 +33,7 @@
 //0: 80x60
 //1: 160x120
 //2: 240x180
-#define IMAGE_SIZE  3
+#define IMAGE_SIZE  1
 
 #if (IMAGE_SIZE  ==  0)
 #define OV7620_W    (80)
@@ -61,7 +61,7 @@
 #define CMOS_REG_ID     (0x00)
 
 // 图像内存池
-uint8_t gCCD_RAM[(OV7620_H)*((OV7620_W/8)+1)];   //使用内部RAM
+uint8_t gCCD_RAM[(OV7620_H)*(OV7620_W) * 2];   //使用内部RAM
 
 /* 行指针 */
 uint8_t * gpHREF[OV7620_H+1];
@@ -100,14 +100,87 @@ struct {
 uint32_t h_counter;
 static void UserApp(uint32_t vcount);
 
+#if 0
+/* 串口接收中断回调函数
+   在函数中写中断想要做的事情
+*/
+static void UART_RX_ISR(uint16_t byteReceived)
+{
+    /* 将接收到的数据发送回去 */
+    UART_WriteByte(HW_UART1, byteReceived);
+}
+#else
+static const void* UART_DataPortAddrTable[] = 
+{
+    (void*)&UART0->D,
+    (void*)&UART1->D,
+    (void*)&UART2->D,
+    (void*)&UART3->D,
+    (void*)&UART4->D,
+    (void*)&UART5->D,    
+};
+
+static const uint32_t UART_SendDMATriggerSourceTable[] = 
+{
+    UART0_TRAN_DMAREQ,
+    UART1_TRAN_DMAREQ,
+    UART2_TRAN_DMAREQ,
+    UART3_TRAN_DMAREQ,
+    UART4_TRAN_DMAREQ,
+    UART5_TRAN_DMAREQ,
+};
+
+/* DMA 发送函数 */
+static uint32_t UART_SendWithDMA(uint32_t dmaChl, const uint8_t *buf, uint32_t size)
+{
+    DMA_SetSourceAddress(dmaChl, (uint32_t)buf);
+    DMA_SetMajorLoopCounter(dmaChl, size);
+    /* 启动传输 */
+    DMA_EnableRequest(dmaChl);
+    return 0;
+}
+
+static void UART_DMASendConfig(uint32_t uartInstnace, uint8_t dmaChl)
+{
+    DMA_InitTypeDef DMA_InitStruct1 = {0};
+    DMA_InitStruct1.chl = dmaChl;
+    DMA_InitStruct1.chlTriggerSource = UART_SendDMATriggerSourceTable[uartInstnace];
+    DMA_InitStruct1.triggerSourceMode = kDMA_TriggerSource_Normal;
+    DMA_InitStruct1.minorLoopByteCnt = 1;
+    DMA_InitStruct1.majorLoopCnt = 0;
+    
+    DMA_InitStruct1.sAddr = NULL;
+    DMA_InitStruct1.sLastAddrAdj = 0; 
+    DMA_InitStruct1.sAddrOffset = 1;
+    DMA_InitStruct1.sDataWidth = kDMA_DataWidthBit_8;
+    DMA_InitStruct1.sMod = kDMA_ModuloDisable;
+    
+    DMA_InitStruct1.dAddr = (uint32_t)UART_DataPortAddrTable[uartInstnace]; 
+    DMA_InitStruct1.dLastAddrAdj = 0;
+    DMA_InitStruct1.dAddrOffset = 0;
+    DMA_InitStruct1.dDataWidth = kDMA_DataWidthBit_8;
+    DMA_InitStruct1.dMod = kDMA_ModuloDisable;
+    DMA_Init(&DMA_InitStruct1);
+}
+#endif
 
 /* 接收完成一场后 用户处理函数 */
 static void UserApp(uint32_t vcount)
 {
+    uint32_t i;
     //GUI_printf(100,0, "frame:%d", vcount);
     //GUI_DispCCDImage(0, 15, OV7620_W, OV7620_H, gpHREF);
     //SerialDispCCDImage(OV7620_W, OV7620_H, CCDBuffer);
     LOG("frame:%d\r\n", vcount);
+    //gCCD_RAM[0] = 0x55;gCCD_RAM[1] = 0x55;gCCD_RAM[2] = 0x55;gCCD_RAM[3] = 0x55;gCCD_RAM[4] = 0x55;gCCD_RAM[5] = 0x55;
+    for(i=0;i<38400;i++)
+    {
+        LOG("%02x ", gCCD_RAM[i]);
+    }
+    /* 通过串口使用dma功能实现数据发送 */
+    //UART_SendWithDMA(HW_DMA_CH3, gCCD_RAM, 38400);
+    /* 等待DMA传输结束 */
+    //while(DMA_IsMajorLoopComplete(HW_DMA_CH3));
 }
 
 void GC0308_write_cmos_sensor(uint8_t addr, uint8_t para)
@@ -167,6 +240,7 @@ void GC0308_Sensor_Init(void)
     GC0308_write_cmos_sensor(0xea , 0x09);   //exp level 3  4.00fps
     GC0308_write_cmos_sensor(0xeb , 0xc4); 
 
+#if 0 //640*480
     GC0308_write_cmos_sensor(0x05 , 0x00);
     GC0308_write_cmos_sensor(0x06 , 0x00);
     GC0308_write_cmos_sensor(0x07 , 0x00);
@@ -175,6 +249,17 @@ void GC0308_Sensor_Init(void)
     GC0308_write_cmos_sensor(0x0a , 0xe8);
     GC0308_write_cmos_sensor(0x0b , 0x02);
     GC0308_write_cmos_sensor(0x0c , 0x88);
+#else //160*120
+    GC0308_write_cmos_sensor(0x05 , 0x00);
+    GC0308_write_cmos_sensor(0x06 , 0xB4);//480/2-120/2
+    GC0308_write_cmos_sensor(0x07 , 0x00);
+    GC0308_write_cmos_sensor(0x08 , 0xF0);//640/2-480/2
+    GC0308_write_cmos_sensor(0x09 , 0x00);
+    GC0308_write_cmos_sensor(0x0a , 0x80);//120+8
+    GC0308_write_cmos_sensor(0x0b , 0x00);
+    GC0308_write_cmos_sensor(0x0c , 0xA8);//160+8
+#endif
+    
     GC0308_write_cmos_sensor(0x0d , 0x02);
     GC0308_write_cmos_sensor(0x0e , 0x02);
     GC0308_write_cmos_sensor(0x10 , 0x22);
@@ -194,12 +279,19 @@ void GC0308_Sensor_Init(void)
     GC0308_write_cmos_sensor(0x1e , 0x60);
     GC0308_write_cmos_sensor(0x1f , 0x16);
 
-
+#if 1
     GC0308_write_cmos_sensor(0x20 , 0xff);
     GC0308_write_cmos_sensor(0x21 , 0xf8);
     GC0308_write_cmos_sensor(0x22 , 0x57);
-    GC0308_write_cmos_sensor(0x24 , 0xa0);
+    GC0308_write_cmos_sensor(0x24 , 0xa3);
     GC0308_write_cmos_sensor(0x25 , 0x0f);
+#else
+    GC0308_write_cmos_sensor(0x20 , 0x00);
+    GC0308_write_cmos_sensor(0x21 , 0x00);
+    GC0308_write_cmos_sensor(0x22 , 0x00);
+    GC0308_write_cmos_sensor(0x24 , 0xb9);
+    GC0308_write_cmos_sensor(0x25 , 0x0f);
+#endif
                              
     //output sync_mode       
     GC0308_write_cmos_sensor(0x26 , 0x03);
@@ -444,8 +536,12 @@ void CMOS_ISR1(uint32_t index)
     if(index & (1 << CMOS_HREF_PIN))
     {
         DMA_SetDestAddress(HW_DMA_CH2, (uint32_t)gpHREF[h_counter++]);
+        if(h_counter >= (OV7620_H+1))
+        {
+            h_counter = OV7620_H+1;
+        }
         //i = DMA_GetMajorLoopCount(HW_DMA_CH2);
-        DMA_SetMajorLoopCounter(HW_DMA_CH2, (OV7620_W/8)+1);
+        DMA_SetMajorLoopCounter(HW_DMA_CH2, (OV7620_W * 2));
         DMA_EnableRequest(HW_DMA_CH2);
         
         return;
@@ -490,29 +586,12 @@ void CMOS_ISR(uint32_t index)
             default:
                 break;
         }
-        GPIO_ITDMAConfig(CMOS_VSYNC_PORT, CMOS_VSYNC_PIN, kGPIO_IT_RisingEdge, true);
-        GPIO_ITDMAConfig(CMOS_HREF_PORT, CMOS_HREF_PIN, kGPIO_IT_RisingEdge, true);
+        //GPIO_ITDMAConfig(CMOS_VSYNC_PORT, CMOS_VSYNC_PIN, kGPIO_IT_RisingEdge, true);
+        //GPIO_ITDMAConfig(CMOS_HREF_PORT, CMOS_HREF_PIN, kGPIO_IT_RisingEdge, true);
         PORTC->ISFR = 0xFFFFFFFF;
         h_counter = 0;
         return;
     }
-}
-
- /*
-     实验名称：UART打印信息
-     实验平台：渡鸦开发板
-     板载芯片：MK60DN512ZVQ10
- 实验效果：使用串口UART将芯片的出厂信息在芯片上电后发送出去
-        发送完毕后，进入while中，执行小灯闪烁效果
-*/
-
-/* 串口接收中断回调函数
-   在函数中写中断想要做的事情
-*/
-static void UART_RX_ISR(uint16_t byteReceived)
-{
-    /* 将接收到的数据发送回去 */
-    UART_WriteByte(HW_UART1, byteReceived);
 }
 
 int main(void)
@@ -526,10 +605,16 @@ int main(void)
     UART_QuickInit(UART0_RX_PB16_TX_PB17, 115200);//打印信息口，printf会自动选择第一个初始化的串口
 
     UART_QuickInit(UART1_RX_PE01_TX_PE00, 115200);
+#if 0
     /*  配置UART 中断配置 打开接收中断 安装中断回调函数 */
     UART_CallbackRxInstall(HW_UART1, UART_RX_ISR);
     /* 打开串口接收中断功能 IT 就是中断的意思*/
     UART_ITDMAConfig(HW_UART1, kUART_IT_Rx, true);
+#else
+    /* 打开UART0 DMA发送使能 */
+    UART_ITDMAConfig(HW_UART1, kUART_DMA_Tx, true);
+    UART_DMASendConfig(HW_UART1, HW_DMA_CH3);
+#endif
 
     DelayMs(10);
 
@@ -578,7 +663,7 @@ int main(void)
     //每行数据指针
     for(i=0; i<OV7620_H+1; i++)
     {
-        gpHREF[i] = (uint8_t*)&gCCD_RAM[i*OV7620_W/8];
+        gpHREF[i] = (uint8_t*)&gCCD_RAM[i*OV7620_W*2];
     }
 
     //DMA配置
@@ -586,7 +671,7 @@ int main(void)
     DMA_InitStruct1.chlTriggerSource = PORTC_DMAREQ;
     DMA_InitStruct1.triggerSourceMode = kDMA_TriggerSource_Normal;
     DMA_InitStruct1.minorLoopByteCnt = 1;
-    DMA_InitStruct1.majorLoopCnt = ((OV7620_W/8) +1);
+    DMA_InitStruct1.majorLoopCnt = (OV7620_W * 2);
     
     DMA_InitStruct1.sAddr = (uint32_t)&PTD->PDIR;
     DMA_InitStruct1.sLastAddrAdj = 0;
@@ -606,6 +691,12 @@ int main(void)
     {
         /* 闪烁小灯 */
         GPIO_ToggleBit(HW_GPIOC, 1);
+#if 0
+        /* 通过串口使用dma功能实现数据发送 */
+        UART_SendWithDMA(HW_DMA_CH3, (const uint8_t*)String1, sizeof(String1));
+        /* 等待DMA传输结束 */
+        while(DMA_IsMajorLoopComplete(HW_DMA_CH3));
+#endif
         DelayMs(500);
     }
 }
