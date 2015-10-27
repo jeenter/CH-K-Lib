@@ -830,6 +830,37 @@ void CMOS_ISR(uint32_t index)
     }
 }
 
+
+static uint32_t _get_reamin(void)
+{
+    return 0;
+}
+
+static uint32_t xfer(uint8_t *buf_in, uint8_t *buf_out, uint32_t len, uint8_t cs_state)
+{
+    uint8_t dummy_in;
+    
+    if(!buf_in)
+        buf_in = &dummy_in;
+    
+    while(len--)
+    {
+        if(len == 0)
+        {
+            *buf_in = SPI_ReadWriteByte(HW_SPI0, HW_CTAR0, *buf_out, 1, (SPI_PCS_Type)!cs_state); 
+        }
+        else
+        {
+            *buf_in = SPI_ReadWriteByte(HW_SPI0, HW_CTAR0, *buf_out, 1, kSPI_PCS_KeepAsserted); 
+        }
+        if(buf_out)
+            buf_out++;
+        if(buf_in != &dummy_in)
+            buf_in++;
+    }
+    return len;
+}
+
 int main(void)
 {
     uint32_t UID_buf[4];
@@ -868,6 +899,30 @@ int main(void)
     }
     LOG("\r\n");
 
+    /* 初始化SPI2接口 */
+    SPI_QuickInit(SPI0_SCK_PC05_SOUT_PC06_SIN_PC07, kSPI_CPOL0_CPHA0, 10*1000*1000);
+    
+    /* 初始化w25qxx 使用CS0片选 */
+    PORT_PinMuxConfig(HW_GPIOC, 4, kPinAlt2); /* SPI0_PCS0 */
+    
+    /* 获取SPI-Flash的信息 */
+    struct w25qxx_init_t init;
+    
+    init.delayms = DelayMs;
+    init.get_reamin = _get_reamin;
+    init.xfer = xfer;
+    
+    if(w25qxx_init(&init))
+    {
+        printf("w25qxx device no found!\r\n");
+    }
+    else
+    {
+        printf("spi_flash found id:0x%X\r\n", w25qxx_get_id());
+    }
+    
+#if 0
+    
     hwDriverInit();
 
     /* 使用快速初始化 */
@@ -922,6 +977,7 @@ int main(void)
 
     /* initialize DMA moudle */
     DMA_Init(&DMA_InitStruct1);
+#endif
     while(1)
     {
         /* 闪烁小灯 */

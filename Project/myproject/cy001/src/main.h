@@ -8,6 +8,8 @@
 #include "cpuidy.h"
 #include "i2c.h"
 #include "dma.h"
+#include "w25qxx.h"
+#include "spi.h"
 
 /*-*-* 所有宏开关 *-*-*/
 
