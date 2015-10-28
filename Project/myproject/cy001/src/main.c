@@ -847,11 +847,11 @@ static uint32_t xfer(uint8_t *buf_in, uint8_t *buf_out, uint32_t len, uint8_t cs
     {
         if(len == 0)
         {
-            *buf_in = SPI_ReadWriteByte(HW_SPI0, HW_CTAR0, *buf_out, 1, (SPI_PCS_Type)!cs_state); 
+            *buf_in = SPI_ReadWriteByte(HW_SPI0, HW_CTAR0, *buf_out, 0, (SPI_PCS_Type)!cs_state); 
         }
         else
         {
-            *buf_in = SPI_ReadWriteByte(HW_SPI0, HW_CTAR0, *buf_out, 1, kSPI_PCS_KeepAsserted); 
+            *buf_in = SPI_ReadWriteByte(HW_SPI0, HW_CTAR0, *buf_out, 0, kSPI_PCS_KeepAsserted); 
         }
         if(buf_out)
             buf_out++;
